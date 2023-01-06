@@ -1,0 +1,321 @@
+MONDAY TUESDAY: setting up the demos in ubuntu vm for parts 1,2 and 3
+WEDNESDAY: Gather and learn theorytical information.
+
+
+
+
+
+First video (GNS3: FRRouting Using Docker Platform) link: https://www.youtube.com/watch?v=D4nk5VSUelg
+
+
+--VIDEO at 13:00 minutes--
+$ sudo usermod -a -G docker anteo
+After that log out cash, log back in, and command
+$ docker ps
+should work
+
+#getting frrouting docker image
+$ docker pull frrouting/frr
+
+#getting alpine docker image
+$ docker pull alpine
+
+#run frrouting docker image
+$ docker run -d frrouting/frr
+
+#checking that the image runs
+$ docker ps
+
+#connect to the container running the downloaded image
+$ docker exec -it silly_jones sh
+
+#stop the container
+$ docker stop silly_jones
+
+#remove the container
+$ docker rm silly_jones
+
+#changing permissions to allow packets capture with wireshark
+$ ./wireshark_permissions.sh
+
+#start gns3
+#create new project with default values
+#edit preferences; edit docker image, create the new frrouting image with name host_anteo-1, save changes.
+#add the newly created host_anteo-1 to the schema, start it, open an auxyliary terminal.
+#write the file vi /etc/frr/vtysh.conf as we dont have it by default. vtysh is a shell for frr daemons. See file vtysh.conf for details.
+#edit the file /etc/frr/daemons and set bgpd, ospfd qnd isisd to yes, save and exit.
+#Stop the running docker machine
+$ docker stop lucid_ellis
+#docker commit lucid_ellis (commits a container's file change or settings into a new image)
+$ docker commit lucid_ellis
+#delete the host_anteo-1 from the schema, and delete the template on the left menu
+#recreate a device using the docker image we just commited (repeat line 43)
+#change the device's symbol to a route-switch-processor by editing the template. Put the newly created template in the schema.
+#start device routeur-1 and open auxyliary console, check if content of /etc/frr/daemons is the same as what we saved on line 46.
+$ vtysh
+starts a shell for frr daemons.
+
+TO ANSWER SUBJECT PART ONE
+Once the two devices are up and running, start the auxiliary console of host-1 and type in busybox or ps.
+Start the auxiliary console of routeur-anteo-1 and type in ps. It displays the active processes of the wanted services (zebra, bgpd, ospfd, isisd)
+Three more processes are automatically started when launching the routeur-1, and they are watchfrr (daemon that that handles failed daemon processes and intelligently restarts them as needed), zebra (mutli-server routing software which provides TCP/IP based routing protocols. Zebra turns your machine into a full powered router.) and staticd (daemon that handles the installation and deletion of static routes). These daemons are started automatically as we can see in the /etc/frr/daemons conf file. 
+cat /etc/os-release
+
+
+PART 2
+
+second youtube video: GNS3: FRRouting Using Docker Platform - VxLANs
+
+#To achieve topology first, copy paste host_anteo_1 and routeur_anteo_1, so that you have 2 of each. Then add a switch to connect both the routers.
+#Start all machines
+#Access routeur_anteo_1 through auxiliary console.
+#INCONSOLE_routeur_anteo_1 
+		ip link add br0 type bridge
+		ip link set dev br0 up
+		(attribute ip address to routeur_anteo_1 eth0) ip addr add 10.1.1.1/24 dev eth0
+		(check device ip address) ip addr show eth0
+		(create vxlan interface) ip link add name vxlan10 type vxlan id 10 dev eth0 remote 10.1.1.2 local 10.1.1.1 dstport 4789
+		(give ip address to vxlan interface) ip addr add 20.1.1.1/24 dev vxlan10
+		(to see the ip address) ip -d link show vxlan10
+		(associate vxlan and eth port connected to our host to be connected to 1 bridge domain) brctl addif br0 eth1
+		(so that frames comming from eth1 are encapsulated to the vxlan10) brctl addif br0 vxlan10 
+		(bring vxlan10 up) ip link set dev vxlan10 up
+		(check that vxlan10 is up) ip -d link show vxlan10
+		(check that vxlan10 is part of bridge domain 0) ip link show vxlan10
+		(check that eth1 is also part of bridge domain 0) ip link show eth1
+#INCONSOLE_routeur_anteo_1
+
+#Access routeur_anteo_2 through auxiliary console
+#INCONSOLE_routeur_anteo_2 
+		ip link add br0 type bridge
+		ip link set dev br0 up
+		(attribute ip address to routeur_anteo_2 eth0) ip addr add 10.1.1.2/24 dev eth0
+		(create vxlan interface) ip link add name vxlan10 type vxlan id 10 dev eth0 remote 10.1.1.1 local 10.1.1.2 dstport 4789
+		(give ip address to vxlan interface) ip addr add 20.1.1.2/24 dev vxlan10
+		(bring vxlan10 up) ip link set dev vxlan10 up
+		(check vxlan10 ip addr and is up) ip -d link show vxlan10
+		(make eth1 from host_anteo_2 part of bridge domain 0) brctl addif br0 eth1
+		(make vxlan10 part of bridge domain 0) brctl addif br0 vxlan10
+#INCONSOLE_routeur_anteo_2
+
+#Access host_anteo_1 through auxiliary console
+#INCONSOLE_host_anteo_1 (give ip address to host_anteo_1 eth1) ip addr add 30.1.1.1/24 dev eth1
+
+#Access host_anteo_2 through auxiliary console
+#INCONSOLE_host_anteo_2 (give ip address to host_anteo_2 eth1) ip addr add 30.1.1.2/24 dev eth1
+
+#open wireshark by right clicking on the cable between routeur_anteo_1 and switch, and clicking start capture
+
+#open auxiliary console of host_anteo_2
+#INCONSOLE_host_anteo_2 (ping host_anteo_1) ping 30.1.1.1
+#You should see the packets in wireshark. If we inspect the packet header, we can see a virtual extensible lan header. You can show the VNI value of 10.
+#THIS IS HOW WE HAVE CONFIGURED OUR STATIC VXLAN TO CARRY OUR TRAFFIC FROM ONE LEAF SWITCH TO ANOTHER LEAF SWITCH ENCAPSULATED TO VXLAN.
+
+
+#NOW SAME THING BUT MULTICAST
+#Stop and start routeur_anteo_1 and routeur_anteo_2
+#Connect to auxiliary console routeur_anteo_1
+#INCONSOLE_routeur_anteo_1 
+		ip link add br0 type bridge
+		ip link set dev br0 up
+		ip addr add 10.1.1.1/24 dev eth0
+		ip link add name vxlan10 type vxlan id 10 dev eth0 group 239.1.1.1 dstport 4789
+		ip addr add 20.1.1.1/24 dev vxlan10
+		brctl addif br0 eth1
+		brctl addif br0 vxlan10
+		ip link set dev vxlan10 up
+		(shows that vxlan is part of a group)ip -d link show vxlan10
+#INCONSOLE_routeur_anteo_1
+
+#Connect to auxiliary console routeur_anteo_2
+#INCONSOLE_routeur_anteo_2
+		ip link add br0 type bridge
+		ip link set dev br0 up
+		ip addr add 10.1.1.2/24 dev eth0
+		ip link add name vxlan10 type vxlan id 10 dev eth0 group 239.1.1.1 dstport 4789
+		ip addr add 20.1.1.2/24 dev vxlan10
+		brctl addif br0 eth1
+		brctl addif br0 vxlan10
+		ip link set dev vxlan10 up
+		(shows that vxlan is part of a group)ip -d link show vxlan10
+#INCONSOLE_routeur_anteo_2
+
+#Start capturing traffic on the same cable as part 2.a.
+#start wireshark
+#you can filter out icmpv6 by typing !icmpv6 in the filter form.
+INFO-- The routeurs will not have any MAC address mapping, because they were turned off and on, so mac tables have been refreshed. So the first packet we'll see when we try to ping from host_anteo_1 to host_anteo_2 will be multicast directed to the other side VTEPS.
+--INFO
+
+#open auxiliary console host_anteo_1
+#INCONSOLE_host_anteo_1
+	ping 30.1.1.2
+#INCONSOLE_host_anteo_1
+#In wireshark, we see that the first packet is an ARP request directed at broadcast.
+BROADCAST VS MULTICAST
+https://www.geeksforgeeks.org/difference-between-broadcast-and-multicast/
+
+
+
+---- PART 3 ----
+
+#BGP-EVPN, used extensively in datacenters, is the broadly adopted techno for addressing routes through the internet today. It defines 5 types of routes, we are going to look at route type number 2, which is for MAC and IP advertisment, and route number 3 which is inclusive multicast route. Route type 2 carries out MAC addresses of the end stations, and route type 3 carries the information for the BUM (Broadcast, unknown-unicast and multicast traffic (BUM traffic)[1] is network traffic transmitted using one of three methods of sending data link layer network traffic to a destination of which the sender does not know the network address.). Routers in the middle don't know about each other. To know about each other, they will be sending these route type 3 stating 'I am here, and if you have traffic for a particular VNI, send it to me, and I will be sending the traffic to the particular route targets.'
+BASIC IDEA OF EVPN: Instead of sending the layer 2 traffic and the MAC adresses onto the data plane, they are sent onto the control plane (in this case BGP). Purely a layer 3 network()for all the routers
+The routers in the middle of the topology (3 of them) are the leaf switches.
+
+
+#Start all the routers.
+#open up auxiliary console for routeur_anteo-2
+#configure it
+	##INCONSOLE_routeur_anteo_2##
+ip link add br0 type bridge
+ip link set dev br0 up
+ip link add vxlan10 type vxlan id 10 dstport 4789
+ip link set dev vxlan10 up
+brctl addif br0 vxlan10
+brctl addif br0 eth1
+vtysh
+conf t
+hostname routeur_anteo-2
+no ipv6 forwarding
+!
+interface eth0
+  ip address 10.1.1.2/30
+  ip ospf area 0
+!
+interface lo
+  ip address 1.1.1.2/32
+  ip ospf area 0
+!
+router bgp 1
+  neighbor 1.1.1.1 remote-as 1
+  neighbor 1.1.1.1 update-source lo
+  !
+  address-family l2vpn evpn
+    neighbor 1.1.1.1 activate
+    advertise-all-vni
+  exit-address-family
+  !
+  router ospf
+  !
+	##INCONSOLE_routeur_anteo-2##
+
+#open auxiliary console of route reflector (routeur_anteo-1)
+	##INCONSOLE_routeur_anteo-1 (route reflector)##
+vtysh
+conf t
+hostname anteo_routeur-1
+no ipv6 forwarding
+!
+interface eth0
+  ip address 10.1.1.1/30
+!
+interface eth1
+  ip address 10.1.1.5/30
+!
+interface eth2
+  ip address 10.1.1.9/30
+!
+interface lo
+  ip address 1.1.1.1/32
+!
+router bgp 1
+  neighbor ibgp peer-group
+  neighbor ibgp remote-as 1
+  neighbor ibgp update-source lo
+  bgp listen range 1.1.1.0/29 peer-group ibgp
+  !
+  address-family l2vpn evpn
+    neighbor ibgp activate
+    neighbor ibgp route-reflector-client
+  exit-address-family
+!
+router ospf
+  network 0.0.0.0/0 area 0
+!
+line vty
+!
+	##INCONSOLE_routeur_anteo-1 (route reflector)##
+
+	##INCONSOLE_routeur_anteo-3##
+vtysh
+conf t
+hostname routeur_anteo-3
+no ipv6 forwarding
+!
+interface eth1
+  ip address 10.1.1.6/30
+  ip ospf area 0
+!
+interface lo
+  ip address 1.1.1.3/32
+  ip ospf area 0
+!
+router bgp 1
+  neighbor 1.1.1.1 remote-as 1
+  neighbor 1.1.1.1 update-source lo
+  !
+  address-family l2vpn evpn
+    neighbor 1.1.1.1 activate
+  exit-address-family
+ !
+ router ospf
+	##INCONSOLE_routeur_anteo-3##
+
+	##INCONSOLE_routeur_anteo-4##
+ip link add br0 type bridge
+ip link set dev br0 up
+ip link add vxlan10 type vxlan id 10 dstport 4789
+ip link set dev vxlan10 up
+brctl addif br0 vxlan10
+brctl addif br0 eth0
+vtysh
+conf t
+hostname routeur_anteo-4
+no ipv6 forwarding
+!
+interface eth2
+  ip address 10.1.1.10/30
+  ip ospf area 0
+!
+interface lo
+  ip address 1.1.1.4/32
+  ip ospf area 0
+!
+router bgp 1
+  neighbor 1.1.1.1 remote-as 1
+  neighbor 1.1.1.1 update-source lo
+  !
+  address-family l2vpn evpn
+    neighbor 1.1.1.1 activate
+    advertise-all-vni
+  exit-address-family
+ !
+ router ospf
+ !
+ (check if I have a reachability among the devices) do sh ip route
+ (check that we have reachability with the route reflector only) do sh bgp summary
+ (show details of bgp evpn) do sh bgp l2vpn evpn
+	##INCONSOLE_routeur_anteo-4##
+
+#boot up host_anteo-1
+#simply by booting up the host_anteo-1, the routeur_anteo_2 should learn the mac address of host_anteo-1.
+
+#INCONSOLE_routeur_anteo-2
+	(mac address of host_anteo-1 should appear)do show bgp l2vpn evpn.
+#INCONSOLE_routeur_anteo-2
+#We also see that the mac address of host_anteo-1 is prefixed by a type 2 route.
+
+#INCONSOLE_host_anteo-1
+	(confirm mac address of host_anteo-1) ifconfig eth1
+#INCONSOLE_host_anteo-1
+
+#INCONSOLE_routeur_anteo-4
+	do show bgp l2vpn evpn
+#INCONSOLE_routeur_anteo-4
+#shows that the MAC address of host_anteo-1 is also available from routeur_anteo-4
+
+#attribute ip address to host_anteo-1 eth1
+ip addr add 20.1.1.1/24 dev eth1
+#start host_anteo-3
+#attribute ip address to host_anteo-3 eth0
+
